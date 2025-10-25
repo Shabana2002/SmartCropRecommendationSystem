@@ -1,0 +1,3 @@
+__pycache__/
+model/crop_model.pkl
+model/label_encoder.pkl
