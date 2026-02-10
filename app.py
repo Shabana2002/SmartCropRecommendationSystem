@@ -1,16 +1,27 @@
+# app.py
 import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
 import altair as alt
+import os
+
+# ------------------------------
+# Paths for model and label encoder
+# ------------------------------
+MODEL_PATH = os.path.join("model", "crop_model.pkl")
+LE_PATH = os.path.join("model", "label_encoder.pkl")
 
 # ------------------------------
 # Load model and label encoder once
 # ------------------------------
 @st.cache_data
 def load_model():
-    model = joblib.load("model/crop_model.pkl")
-    le = joblib.load("model/label_encoder.pkl")
+    if not os.path.exists(MODEL_PATH) or not os.path.exists(LE_PATH):
+        st.error("Model or label encoder not found! Make sure 'model/' folder with .pkl files is in the repo.")
+        return None, None
+    model = joblib.load(MODEL_PATH)
+    le = joblib.load(LE_PATH)
     return model, le
 
 model, le = load_model()
@@ -55,48 +66,51 @@ features = [N, P, K, temperature, humidity, ph, rainfall]
 # Predict button
 # ------------------------------
 if st.button("Recommend Crops"):
-    top3, all_probs = predict_top3(features)
-
-    # Highlight best crop
-    best_crop, best_prob = top3[0]
-    st.success(f"🌟 Best Crop Recommendation: {best_crop} ({best_prob * 100:.2f}% probability)")
-
-    # Top 3 display
-    st.subheader("Top 3 Recommended Crops:")
-    for crop, prob in top3:
-        st.write(f"{crop} - {prob * 100:.2f}% probability")
-
-    # Bar chart for top 3
-    df_top3 = pd.DataFrame(top3, columns=["Crop", "Probability"])
-    df_top3["Probability"] *= 100
-    chart = alt.Chart(df_top3).mark_bar(color="#4CAF50").encode(
-        x="Crop",
-        y="Probability"
-    )
-    st.altair_chart(chart, use_container_width=True)
-
-    # NPK visual chart
-    st.subheader("🌱 Soil Nutrient Levels (NPK)")
-    df_npk = pd.DataFrame({
-        "Nutrient": ["Nitrogen", "Phosphorus", "Potassium"],
-        "Value": [N, P, K]
-    })
-    npk_chart = alt.Chart(df_npk).mark_bar(color="#FFA500").encode(
-        x="Nutrient",
-        y="Value"
-    )
-    st.altair_chart(npk_chart, use_container_width=True)
-
-    # Fertilizer suggestions
-    st.subheader("💡 Fertilizer Suggestions")
-    if N < 50 or P < 30 or K < 30:
-        st.info("Consider adding fertilizer to balance NPK levels.")
+    if model is None or le is None:
+        st.error("Cannot make predictions because model files are missing.")
     else:
-        st.success("NPK levels are optimal ✅")
+        top3, all_probs = predict_top3(features)
 
-    # All crops table
-    st.subheader("All Crop Probabilities:")
-    all_crops = le.inverse_transform(np.arange(len(all_probs)))
-    df_all = pd.DataFrame({"Crop": all_crops, "Probability": all_probs * 100})
-    df_all = df_all.sort_values(by="Probability", ascending=False).reset_index(drop=True)
-    st.dataframe(df_all)
+        # Highlight best crop
+        best_crop, best_prob = top3[0]
+        st.success(f"🌟 Best Crop Recommendation: {best_crop} ({best_prob * 100:.2f}% probability)")
+
+        # Top 3 display
+        st.subheader("Top 3 Recommended Crops:")
+        for crop, prob in top3:
+            st.write(f"{crop} - {prob * 100:.2f}% probability")
+
+        # Bar chart for top 3
+        df_top3 = pd.DataFrame(top3, columns=["Crop", "Probability"])
+        df_top3["Probability"] *= 100
+        chart = alt.Chart(df_top3).mark_bar(color="#4CAF50").encode(
+            x="Crop",
+            y="Probability"
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+        # NPK visual chart
+        st.subheader("🌱 Soil Nutrient Levels (NPK)")
+        df_npk = pd.DataFrame({
+            "Nutrient": ["Nitrogen", "Phosphorus", "Potassium"],
+            "Value": [N, P, K]
+        })
+        npk_chart = alt.Chart(df_npk).mark_bar(color="#FFA500").encode(
+            x="Nutrient",
+            y="Value"
+        )
+        st.altair_chart(npk_chart, use_container_width=True)
+
+        # Fertilizer suggestions
+        st.subheader("💡 Fertilizer Suggestions")
+        if N < 50 or P < 30 or K < 30:
+            st.info("Consider adding fertilizer to balance NPK levels.")
+        else:
+            st.success("NPK levels are optimal ✅")
+
+        # All crops table
+        st.subheader("All Crop Probabilities:")
+        all_crops = le.inverse_transform(np.arange(len(all_probs)))
+        df_all = pd.DataFrame({"Crop": all_crops, "Probability": all_probs * 100})
+        df_all = df_all.sort_values(by="Probability", ascending=False).reset_index(drop=True)
+        st.dataframe(df_all)
